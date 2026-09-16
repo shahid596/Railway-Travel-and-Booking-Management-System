@@ -14,15 +14,6 @@ A beginner-friendly, server-rendered railway booking system built with **FastAPI
 6. Graph-based fallback routing (direct + 1-transfer only)
 7. Multi-city trip planner with atomic multi-leg booking
 
-## One deliberate deviation from the original spec
-
-The original schema has no `journey_date` on `Bookings`. Without it, a booking made
-today would block that seat **forever**, on every future date the train runs —
-trains run daily, so this breaks the app immediately. I added `journey_date` to
-`Bookings` (and thread it through every availability/search query) so the segment-
-overlap logic is scoped to a single day's run of the train, which is what the
-schema was clearly meant to do. Everything else follows the plan as written.
-
 ## Tech stack
 
 - **Backend:** FastAPI + Uvicorn
