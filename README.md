@@ -1,13 +1,12 @@
 # Railway Travel and Booking Management System
 
 A beginner-friendly, server-rendered railway booking system built with **FastAPI**,
-**MySQL (InnoDB)**, **SQLAlchemy**, and **Jinja2**. No React, no build tooling, no
-Docker — just `pip install`, seed the DB, and `uvicorn`.
+**MySQL (InnoDB)**, **SQLAlchemy**.
 
 ## Features
 
 1. Accounts, train search, booking, cancellation with refund (status transition)
-2. Multiple ticket categories (general / tatkal / ladies / senior)
+2. Multiple ticket categories (general / Sleeper / AC)
 3. Live seat map with adjacency ("sit together") detection
 4. Concurrency-safe booking — two passengers can hold the same physical seat as
    long as their station ranges don't overlap (e.g. A→C and C→B)
