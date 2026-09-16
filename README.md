@@ -113,30 +113,6 @@ ones should conflict, non-overlapping ones should both succeed.
 pytest tests/
 ```
 
-## Design notes / what to say in your report
-
-- **Segment overlap is the one query everything is built on.** `services/availability.py`
-  has a single function, `segments_overlap`, that every other feature (search,
-  seat map, booking, split-ticket, routing) calls into.
-- **Concurrency safety:** booking transactions run at `READ COMMITTED` isolation
-  (explicitly set — InnoDB defaults to `REPEATABLE READ`, which can serve stale
-  reads mid-transaction) and lock the seat's existing bookings with
-  `SELECT ... FOR UPDATE` before checking overlap, so two concurrent requests for
-  overlapping ranges can't both slip through. Non-overlapping ranges on the same
-  seat are still both allowed — that's a business rule, not a race condition.
-- **Soft holds, no worker process:** a `held` booking blocks the segment until
-  `hold_expires_at`. Expiry is checked lazily at read time (every availability
-  query filters out expired holds) instead of running a background job.
-- **Refunds** are a `refund_status` state transition (`none → refunded`) on
-  cancellation — there's no real payment integration, by design.
-- **Routing is direct + 1-transfer only.** No general graph search (Dijkstra/BFS)
-  — intentionally out of scope for the timeline.
-- **Scalability:** the app runs on a single MySQL instance, which is fine at this
-  scale. At production scale you'd add read replicas for search/seat-map traffic,
-  connection pooling (SQLAlchemy's built-in pool — cheap, worth doing even here),
-  and eventually shard by geographic zone, with a caching layer (e.g. Redis) in
-  front of high-read endpoints like seat availability.
-
 ## Explicitly out of scope
 
 - Multi-hop routing beyond 1 transfer
