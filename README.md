@@ -1,4 +1,4 @@
-# Railway Management System
+# Railway Travel and Booking Management System
 
 A beginner-friendly, server-rendered railway booking system built with **FastAPI**,
 **MySQL (InnoDB)**, **SQLAlchemy**, and **Jinja2**. No React, no build tooling, no
