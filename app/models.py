@@ -1,12 +1,4 @@
-"""SQLAlchemy models.
 
-This mirrors the schema in the project plan, with one addition: `journey_date`
-on Booking. Trains run on a schedule every day, and the plan's segment-overlap
-rule ("no two bookings on the same seat with overlapping station ranges") only
-makes sense *per calendar day* of that train's run — without a date, a booking
-made today would block the seat on every future date forever. So `journey_date`
-is threaded through Booking and every availability query.
-"""
 import enum
 from datetime import datetime
 
