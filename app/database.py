@@ -1,9 +1,4 @@
-"""SQLAlchemy engine / session setup.
 
-Booking transactions need explicit control over isolation level and row
-locking (SELECT ... FOR UPDATE), so we use plain SQLAlchemy sessions rather
-than hiding transactions behind an ORM-managed unit-of-work pattern.
-"""
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
