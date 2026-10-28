@@ -1,34 +1,46 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.exception_handlers import http_exception_handler
 
-from app.config import settings
-from app.routers import auth, search, seatmap, booking, trips
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
-app = FastAPI(title="Railway Management System")
+from app.dependencies import get_current_user
+from app.routers import auth, availability, booking, search
 
-app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET)
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app = FastAPI()
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
+    name="static",
+)
+templates = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parent / "templates")
+)
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.environ["SESSION_SECRET_KEY"],
+    same_site="lax",
+    https_only=os.environ.get("HTTPS_ONLY", "false").lower() == "true",
+)
 
 app.include_router(auth.router)
-app.include_router(search.router)
-app.include_router(seatmap.router)
+app.include_router(availability.router)
 app.include_router(booking.router)
-app.include_router(trips.router)
+app.include_router(search.router)
 
 
-@app.exception_handler(StarletteHTTPException)
-async def redirect_on_auth_required(request: Request, exc: StarletteHTTPException):
-    # require_login() raises a 303 with a Location header when no one is
-    # logged in; let that behave as a real redirect instead of an error page.
-    if exc.status_code == 303 and "Location" in (exc.headers or {}):
-        return RedirectResponse(exc.headers["Location"], status_code=303)
-    return await http_exception_handler(request, exc)
-
-
-@app.get("/")
-def root():
-    return RedirectResponse("/search")
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def home(request: Request, user=Depends(get_current_user)):
+    return templates.TemplateResponse(
+        request=request,
+        name="home.html",
+        context={"user": user},
+    )

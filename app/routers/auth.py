@@ -1,65 +1,120 @@
-from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from pathlib import Path
 
-from app.dependencies import get_db, get_current_user
-from app.models import User
-from app.security import hash_password, verify_password
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from pwdlib import PasswordHash
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.db import get_db
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(
+    directory=str(Path(__file__).resolve().parents[1] / "templates")
+)
+password_hash = PasswordHash.recommended()
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_form(request: Request):
-    return templates.TemplateResponse("signup.html", {"request": request, "error": None})
+def signup_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="auth/signup.html",
+        context={"error": request.query_params.get("error")},
+    )
 
 
 @router.post("/signup")
 def signup(
     request: Request,
     name: str = Form(...),
-    email: str = Form(...),
+    phone: str = Form(...),
+    gmail: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    user = User(name=name.strip(), email=email.strip().lower(), password_hash=hash_password(password))
-    db.add(user)
+    name = name.strip()
+    phone = phone.strip()
+    gmail = gmail.strip().lower()
+
+    if (
+        not name
+        or len(name) > 100
+        or not phone
+        or len(phone) > 20
+        or not gmail
+        or len(gmail) > 254
+        or len(password) < 8
+    ):
+        return RedirectResponse("/signup?error=invalid_input", status_code=303)
+
+    hashed_password = password_hash.hash(password)
+
     try:
-        db.commit()
+        with db.begin():
+            result = db.execute(
+                text(
+                    """
+                    INSERT INTO users (name, phone, gmail, passwordHash)
+                    VALUES (:name, :phone, :gmail, :password_hash)
+                    """
+                ),
+                {
+                    "name": name,
+                    "phone": phone,
+                    "gmail": gmail,
+                    "password_hash": hashed_password,
+                },
+            )
+            user_id = result.lastrowid
     except IntegrityError:
-        db.rollback()
-        return templates.TemplateResponse(
-            "signup.html", {"request": request, "error": "That email is already registered."}
-        )
-    request.session["user_id"] = user.id
-    return RedirectResponse("/search", status_code=303)
+        return RedirectResponse("/signup?error=account_exists", status_code=303)
+
+    request.session.clear()
+    request.session["user_id"] = user_id
+
+    return RedirectResponse("/", status_code=303)
 
 
 @router.get("/login", response_class=HTMLResponse)
-def login_form(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+def login_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="auth/login.html",
+        context={"error": request.query_params.get("error")},
+    )
 
 
 @router.post("/login")
 def login(
     request: Request,
-    email: str = Form(...),
+    gmail: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.email == email.strip().lower()).first()
-    if user is None or not verify_password(password, user.password_hash):
-        return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "Invalid email or password."}
-        )
-    request.session["user_id"] = user.id
-    return RedirectResponse("/search", status_code=303)
+    user = db.execute(
+        text(
+            """
+            SELECT id, passwordHash
+            FROM users
+            WHERE gmail = :gmail
+            """
+        ),
+        {"gmail": gmail.strip().lower()},
+    ).mappings().first()
+
+    if user is None or not password_hash.verify(password, user["passwordHash"]):
+        return RedirectResponse("/login?error=invalid_credentials", status_code=303)
+
+    request.session.clear()
+    request.session["user_id"] = user["id"]
+
+    return RedirectResponse("/", status_code=303)
 
 
-@router.get("/logout")
+@router.post("/logout")
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", status_code=303)
